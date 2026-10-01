@@ -1,0 +1,234 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+}
+
+enum ArticleStatus {
+  PUBLISHED
+  HIDDEN
+  DRAFT
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String   @map("password_hash")
+  role         Role     @default(ADMIN)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("users")
+}
+
+model Category {
+  slug      String    @id
+  name      String
+  sortOrder Int       @default(0) @map("sort_order")
+  articles  Article[]
+  sources   Source[]
+
+  @@map("categories")
+}
+
+model Source {
+  id             String    @id @default(cuid())
+  name           String
+  website        String?
+  type           String    @default("rss") // rss | newsapi
+  url            String    @unique // RSS / Atom feed URL, or NewsAPI endpoint (key is added server-side)
+  category       String
+  categoryRef    Category  @relation(fields: [category], references: [slug])
+  language       String    @default("en")
+  enabled        Boolean   @default(true)
+  // Editorial metadata. Nothing is assumed reliable: admins rate sources.
+  reliability    String    @default("unrated") // unrated | reviewed | trusted
+  notes          String?
+  lastFetchedAt  DateTime? @map("last_fetched_at")
+  lastStatus     String?   @map("last_status") // ok | error
+  lastError      String?   @map("last_error")
+  failureCount   Int       @default(0) @map("failure_count") // consecutive failures
+  createdAt      DateTime  @default(now()) @map("created_at")
+  articles       Article[]
+  fetchLogs      SourceFetchLog[]
+
+  @@map("sources")
+}
+
+model SourceFetchLog {
+  id         String   @id @default(cuid())
+  sourceId   String   @map("source_id")
+  source     Source   @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  ok         Boolean
+  itemCount  Int      @default(0) @map("item_count")
+  newCount   Int      @default(0) @map("new_count")
+  durationMs Int      @default(0) @map("duration_ms")
+  error      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([sourceId, createdAt])
+  @@map("source_fetch_logs")
+}
+
+model Article {
+  id             String        @id @default(cuid())
+  title          String
+  slug           String        @unique
+  originalTitle  String        @map("original_title")
+  summary        String
+  keyPoints      String[]      @map("key_points")
+  contentExcerpt String?       @map("content_excerpt") // short feed excerpt only, never full text
+  sourceId       String?       @map("source_id")
+  source         Source?       @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  sourceName     String        @map("source_name")
+  sourceUrl      String        @map("source_url")
+  canonicalUrl   String        @unique @map("canonical_url")
+  imageUrl       String?       @map("image_url")
+  category       String
+  categoryRef    Category      @relation(fields: [category], references: [slug])
+  tags           ArticleTag[]
+  publishedAt    DateTime      @map("published_at")
+  fetchedAt      DateTime      @default(now()) @map("fetched_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  author         String?
+  language       String        @default("en")
+  readingTime    Int           @default(1) @map("reading_time")
+  aiProcessed    Boolean       @default(false) @map("ai_processed")
+  aiProvider     String?       @map("ai_provider")
+  aiAttempts     Int           @default(0) @map("ai_attempts")
+  titleHash      String        @map("title_hash") // normalized headline fingerprint
+  isBreaking     Boolean       @default(false) @map("is_breaking")
+  breakingManual Boolean       @default(false) @map("breaking_manual")
+  isFeatured     Boolean       @default(false) @map("is_featured")
+  status         ArticleStatus @default(PUBLISHED)
+  viewCount      Int           @default(0) @map("view_count")
+  sourceCount    Int           @default(1) @map("source_count") // outlets covering this story (primary rows only)
+
+  // Story grouping: null => this row is the primary report of a story.
+  primaryId      String?       @map("primary_id")
+  primary        Article?      @relation("StoryGroup", fields: [primaryId], references: [id], onDelete: SetNull)
+  reports        Article[]     @relation("StoryGroup")
+
+  views          ArticleView[]
+  socialPosts    SocialPost[]
+  aiLogs         AiProcessingLog[]
+
+  @@index([status, primaryId, publishedAt(sort: Desc)])
+  @@index([category, status, publishedAt(sort: Desc)])
+  @@index([isBreaking, status, publishedAt(sort: Desc)])
+  @@index([isFeatured, status])
+  @@index([titleHash])
+  @@index([primaryId])
+  @@index([sourceName])
+  @@map("articles")
+}
+
+model Tag {
+  id       String       @id @default(cuid())
+  name     String
+  slug     String       @unique
+  articles ArticleTag[]
+
+  @@map("tags")
+}
+
+model ArticleTag {
+  articleId String  @map("article_id")
+  tagId     String  @map("tag_id")
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@index([tagId])
+  @@map("article_tags")
+}
+
+model TrendingTopic {
+  id           String   @id @default(cuid())
+  topic        String
+  slug         String   @unique
+  score        Float
+  articleCount Int      @default(0) @map("article_count")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([score(sort: Desc)])
+  @@map("trending_topics")
+}
+
+model ArticleView {
+  id        String   @id @default(cuid())
+  articleId String   @map("article_id")
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  visitor   String // salted daily hash, not a raw IP
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([articleId, visitor, createdAt])
+  @@index([createdAt])
+  @@map("article_views")
+}
+
+model SearchLog {
+  id        String   @id @default(cuid())
+  query     String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("search_logs")
+}
+
+model SocialPost {
+  id         String   @id @default(cuid())
+  articleId  String   @map("article_id")
+  article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  platform   String // telegram
+  ok         Boolean
+  externalId String?  @map("external_id")
+  error      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([articleId, platform])
+  @@map("social_posts")
+}
+
+model AiProcessingLog {
+  id         String   @id @default(cuid())
+  articleId  String?  @map("article_id")
+  article    Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  provider   String
+  model      String?
+  ok         Boolean
+  fallback   Boolean  @default(false)
+  durationMs Int      @default(0) @map("duration_ms")
+  error      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("ai_processing_logs")
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("system_settings")
+}
+
+// Optional DB-level override of the env-based Telegram config (editable in admin).
+model TelegramSetting {
+  id        Int      @id @default(1)
+  enabled   Boolean  @default(true)
+  chatId    String?  @map("chat_id")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("telegram_settings")
+}

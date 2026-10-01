@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 248 248 246;
+  --surface: 255 255 255;
+  --line: 229 229 226;
+  --ink: 20 20 24;
+  --muted: 100 100 108;
+  --brand: 190 24 44;
+  --alert: 220 38 38;
+}
+.dark {
+  --bg: 10 10 13;
+  --surface: 21 21 26;
+  --line: 42 42 50;
+  --ink: 240 240 244;
+  --muted: 150 150 160;
+  --brand: 248 83 100;
+  --alert: 248 83 100;
+}
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body { @apply bg-bg text-ink font-sans antialiased; }
+  :focus-visible { @apply outline outline-2 outline-offset-2 outline-brand; }
+  ::selection { background: rgb(var(--brand) / 0.25); }
+}
+
+@layer components {
+  .container-page { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
+  .card { @apply rounded-xl border border-line bg-surface; }
+  .section-title { @apply font-serif text-2xl font-bold tracking-tight; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition; }
+  .btn-brand { @apply btn bg-brand text-white hover:opacity-90; }
+  .btn-ghost { @apply btn border border-line hover:bg-line/50; }
+  .chip { @apply inline-flex items-center rounded-full border border-line px-3 py-1 text-xs font-medium text-muted transition hover:border-brand hover:text-brand; }
+  .field { @apply w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-brand; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
