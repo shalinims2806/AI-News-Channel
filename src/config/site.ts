@@ -55,6 +55,7 @@ export const num = (v: string | undefined, d: number) => {
 };
 export const pipelineConfig = {
   get maxArticleAgeHours() { return num(process.env.MAX_ARTICLE_AGE_HOURS, 72); },
+  get maxNewPerRun() { return num(process.env.MAX_NEW_PER_RUN, 40); },
   get maxAiPerRun() { return num(process.env.MAX_AI_PER_RUN, 30); },
   get breakingMinSources() { return num(process.env.BREAKING_MIN_SOURCES, 3); },
   get breakingWindowHours() { return num(process.env.BREAKING_WINDOW_HOURS, 3); },

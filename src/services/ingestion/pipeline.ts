@@ -61,12 +61,8 @@ async function upsertTags(names: string[]) {
     const slug = slugify(n, 40);
     if (slug && !unique.has(slug)) unique.set(slug, n.slice(0, 40));
   }
-  const ids: string[] = [];
-  for (const [slug, name] of unique) {
-    const t = await db.tag.upsert({ where: { slug }, update: {}, create: { slug, name } });
-    ids.push(t.id);
-  }
-  return ids;
+  const tags = await Promise.all([...unique].map(([slug, name]) => db.tag.upsert({ where: { slug }, update: {}, create: { slug, name } })));
+  return tags.map((t) => t.id);
 }
 
 /** Story becomes "breaking" automatically ONLY when enough independent outlets carry it, quickly. */
@@ -130,7 +126,9 @@ export async function processEntries(entries: Entry[], notify = true): Promise<C
   });
   const pool: StoryCandidate[] = recentRows.map((r) => ({ id: r.id, title: r.originalTitle, excerpt: r.contentExcerpt ?? "", sourceName: r.sourceName, titleHash: r.titleHash }));
 
+  const maxNew = pipelineConfig.maxNewPerRun;
   for (const v of valid) {
+    if (c.created + c.grouped >= maxNew) break; // remaining (older) items are picked up on the next run
     if (existingSet.has(v.canonical)) { c.duplicates++; continue; }
     try {
       const excerpt = v.item.excerpt;
