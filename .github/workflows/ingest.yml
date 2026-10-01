@@ -1,0 +1,14 @@
+name: Fetch news
+on:
+  schedule:
+    - cron: "*/10 * * * *" # GitHub may delay runs by a few minutes
+  workflow_dispatch: {}
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call ingestion endpoint
+        run: |
+          curl --fail --silent --show-error --max-time 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.SITE_URL }}/api/cron/ingest"
